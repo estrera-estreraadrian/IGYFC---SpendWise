@@ -1,0 +1,1529 @@
+# Revision Summary
+# 1. Authentication and Security:
+#    Added JWT Bearer authentication and documented registration,
+#    login, and logout functionality.
+#    Affected: Global security, /auth/register, /auth/login,
+#    /auth/logout, UserRegistration, LoginRequest, LoginResponse.
+# 2. User Ownership and Access Control:
+#    Clarified that users can only access and modify their own
+#    financial records. User ownership is determined by the
+#    authenticated token.
+#    Affected: /users, /users/{id}, /budget, /transactions,
+#    /accounts, /savings-goals, and related schemas.
+# 3. User Error Responses:
+#    Added 4xx error responses for invalid requests and
+#    unauthorized access.
+#    Affected: GET /users and related user endpoints.
+# 4. Budget Calculations:
+#    Defined eligible expenses, budget progress percentage,
+#    remaining budget, and the exclusion of savings contributions.
+#    Affected: GET /budget, Budget.
+# 5. Transaction Management:
+#    Clarified how income, expenses, savings contributions,
+#    and balance adjustments affect financial records.
+#    Documented recalculation when transactions are created,
+#    updated, or deleted.
+#    Affected: /transactions, TransactionInput,
+#    TransactionUpdate, Transaction.
+# 6. Account Balance Adjustments:
+#    Added balance adjustment direction and documented
+#    signed adjustments and account balance recalculation.
+#    Affected: TransactionInput, TransactionUpdate,
+#    Transaction, AccountUpdate, Account.
+# 7. Savings Goals:
+#    Clarified how linked savings contributions affect
+#    accumulated contributions and goal progress.
+#    Affected: /savings-goals, SavingsGoal.
+# 8. Financial Reports and Spending Analysis:
+#    Documented financial summaries, date-range reports,
+#    category breakdowns, and spending pattern analysis.
+#    Affected: /financial-summary, /financial-reports,
+#    /spending-patterns, FinancialSummary, FinancialReport,
+#    SpendingPattern.
+# 9. Overspending Alerts:
+#    Defined the 80% approaching-limit and 100% overspending
+#    thresholds. Savings contributions are excluded.
+#    Affected: /overspending-alerts, OverspendingAlert.
+
+openapi: 3.0.3
+info:
+  title: SpendWise API
+  description: REST API for a web-based expense and savings tracker. Currency is Philippine Peso (PHP).
+  contact:
+    name: Adrian Estrera
+    email: 200830023@my.xu.edu.ph
+    url: https://ph.linkedin.com/in/adrian-john-estrera-39439b363
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+
+tags:
+  - name: Authentication
+  - name: Users
+  - name: Budgets
+  - name: Transactions
+  - name: Accounts
+  - name: Savings Goals
+  - name: Financial System
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a user
+      description: Creates an account. The backend must securely hash passwords and never return them.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+            example:
+              username: adrian
+              email: adrian@example.com
+              password: ExamplePassword123
+      responses:
+        '201':
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid data or email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in
+      description: Validates credentials and returns a bearer access token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Log out
+      description: Invalidates the current session/token if token revocation is implemented.
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users:
+    get:
+      tags: [Users]
+      summary: Get authenticated user's profile
+      description: Returns only the profile identified by the bearer token. UserID supplied by a client is not proof of ownership.
+      responses:
+        '200':
+          description: Profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Users]
+      summary: Create a user profile
+      description: Creates a profile; public registration should normally use POST /auth/register.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid user data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      description: Backend must verify the requested ID matches the authenticated user.
+      responses:
+        '200':
+          description: User retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [Users]
+      summary: Update user profile
+      description: Updates the authenticated user's own profile only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid user data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Users]
+      summary: Delete user account
+      description: Deletes the authenticated user's account subject to the retention policy.
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /budget:
+    get:
+      tags: [Budgets]
+      summary: Get authenticated user's budgets
+      description: Returns only the authenticated user's budgets. Eligible expenses are transactions with type 'expense', explicitly linked to the budget through budgetId, and with transactionDate within the budget's dateStart and dateEnd, inclusive. Savings contributions are tracked separately and are not included in budget expenses. totalExpenses is the sum of eligible expenses. Progress is calculated as totalExpenses divided by budgetTotal multiplied by 100. remainingBudget is calculated as budgetTotal minus totalExpenses.
+      parameters:
+        - name: budgetPlan
+          in: query
+          required: false
+          schema:
+            type: string
+            example: Grocery Budget
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            example: Food
+      responses:
+        '200':
+          description: Budgets retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Budget'
+        '400':
+          description: Invalid filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Budgets]
+      summary: Create a budget
+      description: Creates a budget for the authenticated user. Owner identity is taken from the token, not a client-supplied UserID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BudgetInput'
+            example:
+              budgetPlan: Grocery Budget
+              category: Food
+              budgetTotal: 5000
+              dateStart: '2026-11-01'
+              dateEnd: '2026-11-30'
+      responses:
+        '201':
+          description: Budget created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '400':
+          description: Invalid budget data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /budget/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Budgets]
+      summary: Get budget by ID
+      description: Returns the budget only if it belongs to the authenticated user.
+      responses:
+        '200':
+          description: Budget retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Budget not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Budgets]
+      summary: Update budget
+      description: Updates selected fields. Only the budget owner may edit it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BudgetUpdate'
+      responses:
+        '200':
+          description: Budget updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '400':
+          description: Invalid budget data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Budget not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Budgets]
+      summary: Delete budget
+      description: Deletes a budget owned by the authenticated user. Linked transaction handling must follow the application's data-retention rules.
+      responses:
+        '200':
+          description: Budget deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Budget not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transactions:
+    get:
+      tags: [Transactions]
+      summary: Get authenticated user's transactions
+      description: Returns only the user's transactions. May be filtered by type, category, account, budget, and date.
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [income, expense, savings_contribution, balance_adjustment]
+        - name: accountId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: budgetId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Transactions retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Invalid filters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Transactions]
+      summary: Create transaction
+      description:   Income increases the linked account balance and total income. Expense decreases the linked account balance and increases the total expenses of its linked budget. Savings contributions decrease the linked account balance and increase the linked savings goal contributions. Balance adjustments increase or decrease the linked account balance according to balanceAdjustmentDirection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionInput'
+            example:
+              accountId: 2
+              budgetId: 5
+              type: expense
+              category: Food
+              description: Grocery shopping
+              amount: 500
+              transactionDate: '2026-11-14'
+      responses:
+        '201':
+          description: Transaction created and account balance recalculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Invalid transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transactions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Transactions]
+      summary: Get transaction by ID
+      description: Retrieves only a transaction owned by the authenticated user.
+      responses:
+        '200':
+          description: Transaction retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Transaction not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Transactions]
+      summary: Update transaction
+      description: Reverses the old transaction's effect on its account, applies the updated effect, and recalculates linked budget or savings-goal progress.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionUpdate'
+      responses:
+        '200':
+          description: Transaction updated and totals recalculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Invalid transaction update
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Transaction not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Transactions]
+      summary: Delete transaction
+      description: Deletes the transaction and reverses its effect on account balance and related progress totals.
+      responses:
+        '200':
+          description: Transaction deleted and totals recalculated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Transaction not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /accounts:
+    get:
+      tags: [Accounts]
+      summary: Get authenticated user's accounts
+      description: Returns the user's financial accounts and calculated balances.
+      responses:
+        '200':
+          description: Accounts retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Accounts]
+      summary: Create account
+      description: Creates an account for the authenticated user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountInput'
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          description: Invalid account data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /accounts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Accounts]
+      summary: Get account by ID
+      description: Retrieves an account only if owned by the authenticated user.
+      responses:
+        '200':
+          description: Account retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Account not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Accounts]
+      summary: Update account
+      description: Direct balance changes must be recorded as balance_adjustment transactions. Current balance is recalculated from opening balance and recorded transactions, including adjustments.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountUpdate'
+      responses:
+        '200':
+          description: Account updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          description: Invalid account update
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Account not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Accounts]
+      summary: Delete account
+      description: Deletes an owned account subject to linked-transaction retention rules.
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Account not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /savings-goals:
+    get:
+      tags: [Savings Goals]
+      summary: Get savings goals
+      description: Returns only the authenticated user's savings goals and contribution progress.
+      responses:
+        '200':
+          description: Savings goals retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SavingsGoal'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Savings Goals]
+      summary: Create savings goal
+      description: Creates a savings goal owned by the authenticated user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavingsGoalInput'
+      responses:
+        '201':
+          description: Savings goal created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsGoal'
+        '400':
+          description: Invalid goal data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /savings-goals/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Savings Goals]
+      summary: Get savings goal by ID
+      description: Retrieves only a savings goal owned by the authenticated user.
+      responses:
+        '200':
+          description: Savings goal retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsGoal'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Goal not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Savings Goals]
+      summary: Update savings goal
+      description: Updates a savings goal owned by the authenticated user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavingsGoalUpdate'
+      responses:
+        '200':
+          description: Savings goal updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsGoal'
+        '400':
+          description: Invalid goal data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Goal not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Savings Goals]
+      summary: Delete savings goal
+      description: Deletes a savings goal owned by the authenticated user.
+      responses:
+        '200':
+          description: Savings goal deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Goal not found or not accessible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /financial-summary:
+    get:
+      tags: [Financial System]
+      summary: Get financial summary
+      description: Calculates income, expenses, savings contributions, and account balances for the authenticated user and selected period.
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Summary generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialSummary'
+        '400':
+          description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /financial-reports:
+    get:
+      tags: [Financial System]
+      summary: Generate financial report
+      description: Generates a report when requested by the user for the selected date range. It summarizes income, expenses, savings, and account balances; the client may export the result as PDF.
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinancialReport'
+        '400':
+          description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /spending-patterns:
+    get:
+      tags: [Financial System]
+      summary: Get spending patterns
+      description: Analyzes the authenticated user's expenses by category and period.
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [weekly, monthly, yearly]
+            default: monthly
+      responses:
+        '200':
+          description: Spending patterns retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SpendingPattern'
+        '400':
+          description: Invalid period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /overspending-alerts:
+    get:
+      tags: [Financial System]
+      summary: Get overspending alerts
+      description: Default approaching-limit alert occurs at 80% of budget; overspending alert occurs at 100% or more. Progress is calculated by using eligible expenses divided by the budgetTotal multiplied by 100. These proposed thresholds can later be user-configurable.  Savings contributions are excluded from budget expenses.
+      responses:
+        '200':
+          description: Alerts retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OverspendingAlert'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Resource ID; backend must verify ownership.
+      schema:
+        type: integer
+        example: 5
+
+  schemas:
+    UserRegistration:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          example: adrian
+        email:
+          type: string
+          format: email
+          example: adrian@example.com
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          minLength: 8
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          writeOnly: true
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          example: 3600
+        user:
+          $ref: '#/components/schemas/User'
+
+    UserUpdate:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+
+    User:
+      type: object
+      properties:
+        userId:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: adrian
+        email:
+          type: string
+          format: email
+        createdAt:
+          type: string
+          format: date-time
+
+    BudgetInput:
+      type: object
+      required: [budgetPlan, category, budgetTotal, dateStart, dateEnd]
+      properties:
+        budgetPlan:
+          type: string
+          example: Grocery Budget
+        category:
+          type: string
+          example: Food
+        budgetTotal:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 5000
+        dateStart:
+          type: string
+          format: date
+          example: '2026-11-01'
+        dateEnd:
+          type: string
+          format: date
+          example: '2026-11-30'
+
+    BudgetUpdate:
+      type: object
+      properties:
+        budgetPlan:
+          type: string
+        category:
+          type: string
+        budgetTotal:
+          type: number
+          format: double
+          minimum: 0.01
+        dateStart:
+          type: string
+          format: date
+        dateEnd:
+          type: string
+          format: date
+
+    Budget:
+      type: object
+      properties:
+        budgetId:
+          type: integer
+          example: 5
+        userId:
+          type: integer
+          readOnly: true
+          description: Owner assigned from authenticated identity.
+        budgetPlan:
+          type: string
+        category:
+          type: string
+        budgetTotal:
+          type: number
+          format: double
+          example: 5000
+        totalExpenses:
+          type: number
+          format: double
+          description: Total Sum of eligible expenses linked to this budget.
+          example: 2000
+        remainingBudget:
+          type: number
+          format: double
+          description: budgetTotal minus totalExpenses
+          example: 3000
+        progressPercentage:
+          type: number
+          format: double
+          description: totalExpenses divided by budgetTotal, multiplied by 100.
+          example: 40
+        dateStart:
+          type: string
+          format: date
+        dateEnd:
+          type: string
+          format: date
+
+    TransactionInput:
+      type: object
+      required: [accountId, type, category, amount, transactionDate]
+      properties:
+        accountId:
+          type: integer
+        budgetId:
+          type: integer
+          nullable: true
+          description: Optional budget link for an expense.
+        savingsGoalId:
+          type: integer
+          nullable: true
+          description: Optional savings goal link for a savings contribution.
+        type:
+          type: string
+          enum: [income, expense, savings_contribution, balance_adjustment]
+          description: Income increases the linked account balance and total income. Expense decreases the linked account balance and increases the total expenses of its linked budget. Savings contributions decrease the linked account balance and increase the linked savings goal contributions. Balance adjustments increase or decrease the linked account balance according to balanceAdjustmentDirection.
+        category:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        transactionDate:
+          type: string
+          format: date
+        balanceAdjustmentDirection:
+          type: string
+          enum: [increase, decrease]
+          description: 
+            Required when type is balance_adjustment.
+            Determines whether the transaction increases or decreases the linked account balance.
+
+    TransactionUpdate:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        budgetId:
+          type: integer
+          nullable: true
+        savingsGoalId:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          enum: [income, expense, savings_contribution, balance_adjustment]
+        category:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        transactionDate:
+          type: string
+          format: date
+        balanceAdjustmentDirection:
+          type: string
+          enum: [increase, decrease]
+          description: 
+            Required when type is balance_adjustment.
+            Determines whether the transaction increases or decreases the linked account balance.
+
+    Transaction:
+      type: object
+      properties:
+        transactionId:
+          type: integer
+        userId:
+          type: integer
+          readOnly: true
+        accountId:
+          type: integer
+        budgetId:
+          type: integer
+          nullable: true
+        savingsGoalId:
+          type: integer
+          nullable: true
+        type:
+          type: string
+          enum: [income, expense, savings_contribution, balance_adjustment]
+        category:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+          format: double
+        transactionDate:
+          type: string
+          format: date
+        balanceAdjustmentDirection:
+          type: string
+          enum: [increase, decrease]
+          description: 
+            Required when type is balance_adjustment.
+            Determines whether the transaction increases or decreases the linked account balance.
+
+    AccountInput:
+      type: object
+      required: [accountName, accountType, openingBalance]
+      properties:
+        accountName:
+          type: string
+        accountType:
+          type: string
+          enum: [cash, savings, checking, e_wallet, other]
+        openingBalance:
+          type: number
+          format: double
+          minimum: 0
+
+    AccountUpdate:
+      type: object
+      properties:
+        accountName:
+          type: string
+        accountType:
+          type: string
+          enum: [cash, savings, checking, e_wallet, other]
+        balanceAdjustment:
+          type: number
+          format: double
+          description: 
+            Signed adjustment amount, not a replacement account balance. Positive values increase the balance, while negative values decrease it. The backend must record this as a balance_adjustment transaction using a positive amount and the corresponding increase or decrease direction, then recalculate currentBalance.
+
+    Account:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        userId:
+          type: integer
+          readOnly: true
+        accountName:
+          type: string
+        accountType:
+          type: string
+          enum: [cash, savings, checking, e_wallet, other]
+        openingBalance:
+          type: number
+          format: double
+        currentBalance:
+          type: number
+          format: double
+          description: 
+            Calculated as openingBalance plus income, minus expenses, minus savings contributions, plus increases from balance adjustments, and minus decreases from balance adjustments. This value is recalculated whenever a related transaction is created, updated, or deleted.
+
+    SavingsGoalInput:
+      type: object
+      required: [goalName, targetAmount, targetDate]
+      properties:
+        goalName:
+          type: string
+        targetAmount:
+          type: number
+          format: double
+          minimum: 0.01
+        targetDate:
+          type: string
+          format: date
+
+    SavingsGoalUpdate:
+      type: object
+      properties:
+        goalName:
+          type: string
+        targetAmount:
+          type: number
+          format: double
+          minimum: 0.01
+        targetDate:
+          type: string
+          format: date
+
+    SavingsGoal:
+      type: object
+      properties:
+        savingsGoalId:
+          type: integer
+        userId:
+          type: integer
+          readOnly: true
+        goalName:
+          type: string
+        targetAmount:
+          type: number
+          format: double
+        totalContributions:
+          type: number
+          format: double
+          description: Sum of linked savings_contribution transactions.
+        remainingAmount:
+          type: number
+          format: double
+        progressPercentage:
+          type: number
+          format: double
+          description: Total contributions divided by target amount times 100.
+        targetDate:
+          type: string
+          format: date
+
+    FinancialSummary:
+      type: object
+      properties:
+        totalIncome:
+          type: number
+          format: double
+        totalExpenses:
+          type: number
+          format: double
+        totalSavingsContributions:
+          type: number
+          format: double
+        totalAccountBalance:
+          type: number
+          format: double
+        netCashFlow:
+          type: number
+          format: double
+          description: Income minus expenses and savings contributions for the selected period.
+        currency:
+          type: string
+          example: PHP
+
+    FinancialReport:
+      type: object
+      properties:
+        reportId:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        generatedAt:
+          type: string
+          format: date-time
+        summary:
+          $ref: '#/components/schemas/FinancialSummary'
+        categoryBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              total:
+                type: number
+                format: double
+
+    SpendingPattern:
+      type: object
+      properties:
+        category:
+          type: string
+        totalSpent:
+          type: number
+          format: double
+        period:
+          type: string
+
+    OverspendingAlert:
+      type: object
+      properties:
+        alertId:
+          type: integer
+        budgetId:
+          type: integer
+        budgetPlan:
+          type: string
+        totalExpenses:
+          type: number
+          format: double
+        budgetTotal:
+          type: number
+          format: double
+        progressPercentage:
+          type: number
+          format: double
+        thresholdPercentage:
+          type: number
+          format: double
+          example: 80
+        alertLevel:
+          type: string
+          enum: [approaching_limit, overspending]
+        message:
+          type: string
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: '400'
+        message:
+          type: string
+          example: Invalid request data
+        details:
+          type: object
+          additionalProperties: true
+
+    Message:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: Operation completed successfully
