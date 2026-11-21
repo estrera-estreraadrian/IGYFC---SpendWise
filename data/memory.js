@@ -1,4 +1,6 @@
-const collectionNames = [ 
+import { randomUUID } from "node:crypto";
+
+const collectionNames = [
     "users",
     "categories",
     "transactions",
@@ -7,7 +9,9 @@ const collectionNames = [
     "savingsAllocations",
     "recurringExpenses"
 ];
-
+export function createId() {
+    return randomUUID();
+}
 function createCollection(collectionName) {
     return [collectionName, new Map()];
 }
@@ -17,38 +21,38 @@ const collections = Object.fromEntries(
 // Use Above by collection.map(createCollection);
 // Create collection by const collection = [ "smth", "transactions" ] whatever
 export const store = {
-    getAll(collection){
+    getAll(collection) {
         const records = [];
-        for(const record of collections[collection].values()){
+        for (const record of collections[collection].values()) {
             records.push(record);
         }
         return records;
     },
-    findById(collection, id){
+    findById(collection, id) {
         return collections[collection].get(id) ?? null;
     },
-    insert(collection, record){
+    insert(collection, record) {
         collections[collection].set(record.id, record);
         return record;
     },
-    delete(collection, id){
+    delete(collection, id) {
         return collections[collection].delete(id);
     },
-    reset(){
-        for(const collection of collectionNames){
+    reset() {
+        for (const collection of collectionNames) {
             collections[collection].clear();
         }
     },
-    update(collection, id, newCollection){
+    update(collection, id, newCollection) {
         const current = collections[collection].get(id);
         if (!current) return null;
 
         const updated = {};
 
-        for (const key in current){
+        for (const key in current) {
             updated[key] = current[key]
         }
-        for (const key in newCollection){
+        for (const key in newCollection) {
             updated[key] = newCollection[key]
         }
 

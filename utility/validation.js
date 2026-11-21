@@ -1,9 +1,9 @@
-import { apiError } from "./utility/apiError.js"
-//Do I know what I'm doing? Half Yes Half No
-//Credits to StackOverflow for the pickDefined function and a bunch of other shit
+import { apiError } from "../utility/apiError.js"
+//Do I know what I"m doing? Half Yes Half No
+//Credits to StackOverflow for the pickDefined function and a bunch of other shit (gikawat yawa hahahahhaha)
 //Credits to ChatGPT for suggestions on what was missing and fixing requireEnum and requireAmount
 export function requireText(value, fieldName, maxLength = 100) {
-    if (typeof value !== 'string' || !value.trim()) {
+    if (typeof value !== "string" || !value.trim()) {
         throw new apiError(400, `${fieldName} is required.`);
     }
     if (value.trim().length > maxLength) {
@@ -12,7 +12,7 @@ export function requireText(value, fieldName, maxLength = 100) {
     return value.trim();
 }
 
-export function requireAmount(value, fieldName = 'Amount') {
+export function requireAmount(value, fieldName = "Amount") {
     const amount = Number(value);
     if (!Number.isFinite(amount) || amount <= 0) {
         throw new apiError(400, `${fieldName} must be < 0`);
@@ -21,15 +21,15 @@ export function requireAmount(value, fieldName = 'Amount') {
 }
 
 export function requireEnum(value, allowedValues, fieldName) {
-    const normalized = String(value ?? '').toUpperCase();
+    const normalized = String(value ?? "").toUpperCase();
     if (!allowedValues.includes(normalized)) {
-        throw new apiError(400, `${fieldName} must be one of: ${allowedValues.join(', ')}`);
+        throw new apiError(400, `${fieldName} must be one of: ${allowedValues.join(", ")}`);
     }
     return normalized;
 }
 
 export function optionalDate(value, fieldName) {
-    if (value === undefined || value === null || value === '') return null;
+    if (value === undefined || value === null || value === "") return null;
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
         throw new apiError(400, `${fieldName} must be a valud date`);
@@ -43,14 +43,14 @@ export function requiredDate(value, fieldName) {
     return date;
 }
 export function requireBoolean(value, fieldName) {
-    if (typeof value !== 'boolean') {
+    if (typeof value !== "boolean") {
         throw new apiError(400, `${fieldName} must be a boolean DUH`);
     }
     return value;
 }
 
-export function requireContext(value = 'PERSONAL') {
-    return requireEnum(value, ['PERSONAL', 'BUSINESS'], 'Financial context');
+export function requireContext(value = "PERSONAL") {
+    return requireEnum(value, ["PERSONAL", "BUSINESS"], "Financial context");
 }
 
 export function pickDefined(source, keys) {
