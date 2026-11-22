@@ -9,4 +9,4 @@ Group Members:
 6. Henjie Jimenez (ITCC 33)
 
 ### Using test
-node --test test/<filename>.js
+node --test test/\<filename\>.js
