@@ -2,7 +2,7 @@ import { store, createId } from "../data/memory.js";
 import { apiError } from "../utility/apiError.js";
 import { createTransaction, updateTransaction, deleteTransaction, listTransactions } from "../mainMethods/transaction.js";
 import { dayStart, monthStart, addMonth, setFrequency, dateWithin, getRange } from "../utility/date.js"
-import { requireText, optionalDate, requireContext, requireEnum } from "../utility/validation.js";
+import { requireText, optionalDate, requireContext, requireEnum, requireAmount } from "../utility/validation.js";
 import { isAsyncFunction } from "node:util/types";
 //Barebones, Doesn't Work, Don't make a test, Do Last
 //Find Date Import Utlity BS or make one, else how tf do we recur this
@@ -11,6 +11,7 @@ export function createRecurringExpenses(userId, input) {
     if (!nextDueDate) {
         throw new apiError(400, "nextDueDate Missing");
     }
+    const endDate = optionalDate(input.endDate, "End Date");
     if (endDate && new Date(endDate) < new Date(nextDueDate)) {
         throw new apiError(400, "endDate must be > than nextDueDate")
     }
@@ -18,7 +19,7 @@ export function createRecurringExpenses(userId, input) {
     return store.insert("recurringExpenses", {
         id: createId(), userId,
         name: requireText(input.name, "Recurring Expense Title", 100),
-        description: input.description, //requireText
+        description: input.description ? requireText(input.description, "Description", 250) : "",
         amount: requireAmount(input.amount),
         categoryId: validateExpenseCategory(userId, input.categoryId),
         financialContext: requireContext(input.financialContext),
