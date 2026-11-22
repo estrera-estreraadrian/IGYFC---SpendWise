@@ -4,7 +4,7 @@ const collectionNames = [
     "users",
     "categories",
     "transactions",
-    "budgetts",
+    "budgets",
     "savingsGoals",
     "savingsAllocations",
     "recurringExpenses"
