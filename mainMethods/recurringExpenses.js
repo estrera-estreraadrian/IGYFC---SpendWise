@@ -81,3 +81,40 @@ function validateExpenseCategory(userId, categoryId) {
     return categoryId;
 }
 //SMTH to process recurringExpenses
+export function processDueRecurringExpenses(userId = null, now = new Date()) {
+    const generatedTransactions = [];
+    const recurringExpenses = store.getAll("recurringExpenses");
+
+    for (const recurringExpense of recurringExpenses) {
+        if (userId && recurringExpense.userId !== userId) {
+            continue;
+        }
+        if (!recurringExpense.isActive) {
+            continue;
+        }
+        let nextDue = new Date(recurringExpense.nextDueDate);
+        while (nextDue <= now && (!recurringExpense.endDate || nextDue <= new Date(recurringExpense.endDate))) {
+            const transaction = store.insert("transactions", {
+                id: createId(),
+                userId: recurringExpense.userId,
+                type: "EXPENSE",
+                amount: recurringExpense.amount,
+                description: recurringExpense.description || recurringExpense.name,
+                categoryId: recurringExpense.categoryId,
+                financialContext: recurringExpense.financialContext,
+                date: nextDue.toISOString(),
+                recurringExpenseId: recurringExpense.id,
+                createdAt: new Date().toISOString()
+            });
+
+            generatedTransactions.push(transaction);
+            nextDue = setFrequency(nextDue, recurringExpense.frequency);
+        }
+        const hasEnded = recurringExpense.endDate && nextDue > new Date(recurringExpense.endDate);
+        store.update("recurringExpenses", recurringExpense.id, {
+            nextDueDate: nextDue.toISOString(),
+            isActive: hasEnded ? false : recurringExpense.isActive
+        });
+    }
+    return generatedTransactions;
+}
