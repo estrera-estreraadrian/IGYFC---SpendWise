@@ -22,78 +22,6 @@ export function createTransaction(userId, input) {
         createdAt: new Date().toISOString()
     });
 }
-export function updateTransaction(userId, transactionId, input) {
-    const transaction = findTransaction(userId, transactionId);
-    const changes = {};
-
-    if (input.type !== undefined) {
-        changes.type = requireEnum(input.type, ["INCOME", "EXPENSE"], "TransactionType");
-    }
-    if (input.amount !== undefined) {
-        changes.amount = requireAmount(input.amount);
-    }
-    if (input.description !== undefined) {
-        changes.description = requireText(input.description ?? "", "Description", 250);
-    }
-    if (input.categoryId !== undefined) {
-        changes.categoryId = validateCategory(userId, input.categoryId, changes.type || transaction.type);
-    } else if (changes.type && transaction.categoryId) {
-        changes.categoryId = transaction.categoryId;
-    }
-    if (input.financialContext !== undefined) {
-        changes.financialContext = requireContext(input.financialContext);
-    }
-    if (input.date !== undefined) {
-        changes.date = optionalDate(input.date, "Transaction Date") || new Date().toISOString();
-    }
-    // Allocated Amount needs to be fixed after this like REALLY needs to be fixed I think
-    return store.update("transactions", transactionId, changes);
-}
-export function deleteTransaction(userId, transactionId) {
-    findTransaction(userId, transactionId);
-    if (allocatedAmount(transactionId) > 0) {
-        throw new apiError(409, "Remove allocation first");
-    }
-    store.delete("transactions", transactionId);
-}
-function findTransaction(userId, transactionID) {
-    const transaction = store.findById("transactions", transactionID);
-    if (!transaction || transaction.userId != userId) {
-        throw new apiError(404, "Transaction Missing");
-    }
-    return transaction;
-}
-
-function validateCategory(userId, categoryId, type) {
-    console.log("VALDIAIFJAWIFJAFAO");
-    if (!categoryId) {
-        console.log("Mr Error Sir?");
-        return null;
-    }
-    const category = store.findById("categories", categoryId);
-    console.log("A:" + category);
-    console.log("B:" + type);
-    console.log("C:" + category.type);
-    if (!category || category.userId !== userId) {
-        throw new apiError(400, "Category Non-existent");
-    }
-    if (category.type !== type) {
-        throw new apiError(400, "Category Type != Transaction Type");
-    }
-    return categoryId;
-}
-
-function allocatedAmount(transactionId) {
-    const allocations = store.getAll("savingsAllocations");
-    let total = 0;
-    for (const allocation of allocations) {
-        if (allocation.transationId === transactionId) {
-            total = total + allocation.amouunt;
-        }
-    }
-    return total;
-}
-
 export function listTransactions(userId, filters = {}) {
     const transactions = store.getAll("transactions");
     const result = [];
@@ -127,4 +55,78 @@ export function listTransactions(userId, filters = {}) {
         return new Date(b.date) - new Date(a.date);
     });
     return result;
+}
+function findOwnedTransaction(userId, transactionID) {
+    const transaction = store.findById("transactions", transactionID);
+    if (!transaction || transaction.userId != userId) {
+        throw new apiError(404, "Transaction Missing");
+    }
+    return transaction;
+}
+export function updateTransaction(userId, transactionId, input) {
+    const transaction = findOwnedTransaction(userId, transactionId);
+    if (!transaction) {
+        throw new apiError(404, 'Transaction Missing');
+    }
+    const changes = {};
+
+    if (input.type !== undefined) {
+        changes.type = requireEnum(input.type, ["INCOME", "EXPENSE"], "TransactionType");
+    }
+    if (input.amount !== undefined) {
+        changes.amount = requireAmount(input.amount);
+    }
+    if (input.description !== undefined) {
+        changes.description = requireText(input.description ?? "", "Description", 250);
+    }
+    if (input.categoryId !== undefined) {
+        changes.categoryId = validateCategory(userId, input.categoryId, changes.type || transaction.type);
+    } else if (changes.type && transaction.categoryId) {
+        changes.categoryId = transaction.categoryId;
+    }
+    if (input.financialContext !== undefined) {
+        changes.financialContext = requireContext(input.financialContext);
+    }
+    if (input.date !== undefined) {
+        changes.date = optionalDate(input.date, "Transaction Date") || new Date().toISOString();
+    }
+    // Allocated Amount needs to be fixed after this like REALLY needs to be fixed I think
+    return store.update("transactions", transactionId, changes);
+}
+export function deleteTransaction(userId, transactionId) {
+    //Probably check if it exists first
+    findOwnedTransaction(userId, transactionId);
+    if (allocatedAmount(transactionId) > 0) {
+        throw new apiError(409, "Remove allocation first");
+    }
+    store.delete("transactions", transactionId);
+}
+
+function validateCategory(userId, categoryId, type) {
+    console.log("VALDIAIFJAWIFJAFAO");
+    if (!categoryId) {
+        console.log("Mr Error Sir?");
+        return null;
+    }
+    const category = store.findById("categories", categoryId);
+    console.log("A:" + category);
+    console.log("B:" + type);
+    console.log("C:" + category.type);
+    if (!category || category.userId !== userId) {
+        throw new apiError(400, "Category Non-existent");
+    }
+    if (category.type !== type) {
+        throw new apiError(400, "Category Type != Transaction Type");
+    }
+    return categoryId;
+}
+function allocatedAmount(transactionId) {
+    const allocations = store.getAll("savingsAllocations");
+    let total = 0;
+    for (const allocation of allocations) {
+        if (allocation.transationId === transactionId) {
+            total = total + allocation.amouunt;
+        }
+    }
+    return total;
 }
