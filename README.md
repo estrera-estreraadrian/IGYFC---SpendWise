@@ -1,6 +1,6 @@
 # IGYFC---SpendWise
 
-Group Members:
+### Group Members:
 1. Johannes Paulo Aguila
 2. Adrian Nicolai Estrera
 3. Dominic Kit Gumapac
