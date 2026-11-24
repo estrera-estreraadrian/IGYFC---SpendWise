@@ -1,0 +1,109 @@
+use("Spendwise_DB")
+
+db.createCollection("categories")
+db.createCollection("transactions")
+db.createCollection("recurringExpenses")
+db.createCollection("budgets")
+db.createCollection("savingsGoals")
+
+db.accounts.insertMany([
+  {
+    _id: ObjectId('6b0573369be46a54ad873d04'),
+    name: "Test User One",
+    email: "test1@example.com",
+    passwordHash: "fake-hash-1",
+    createdAt: new Date("2026-11-24T11:21:26.798Z")
+  },
+  {
+    _id: ObjectId('6b0573369be46a54ad873d05'),
+    name: "Test User Two",
+    email: "test2@example.com",
+    passwordHash: "fake-hash-2",
+    createdAt: new Date("2026-11-24T11:21:26.798Z")
+  }
+])
+
+db.categories.insertMany([
+  {
+    _id: ObjectId('6b0574f29be46a54ad873d07'),
+    userId: ObjectId('6b0573369be46a54ad873d04'),
+    name: "SALARY",
+    type: "INCOME",
+    icon: "💰",
+    createdAt: new Date("2026-11-24T11:28:50.107Z")
+  },
+  {
+    _id: ObjectId('6b0579169be46a54ad873d08'),
+    userId: ObjectId('6b0573369be46a54ad873d04'),
+    name: "BILLS",
+    type: "EXPENSE",
+    icon: "🧾",
+    createdAt: new Date("2026-11-24T11:46:30.870Z")
+  }
+])
+
+db.recurringExpenses.insertOne({
+  _id: ObjectId('6b057a289be46a54ad873d09'),
+  userId: ObjectId('6b0573369be46a54ad873d04'),
+  name: "Apartment Rent",
+  description: "Monthly Rent",
+  amount: Decimal128("1500.00"),
+  categoryId: ObjectId('6b0579169be46a54ad873d08'),
+  financialContext: "PERSONAL",
+  frequency: "MONTHLY",
+  nextDueDate: new Date("2026-12-01"),
+  endDate: null,
+  isActive: true,
+  createdAt: new Date("2026-11-24T11:51:04.476Z")
+})
+
+db.transactions.insertMany([
+  {
+    _id: ObjectId('6b057b9e9be46a54ad873d0a'),
+    userId: ObjectId('6b0573369be46a54ad873d04'),
+    type: "INCOME",
+    amount: Decimal128("20000.00"),
+    description: "November salary",
+    categoryId: ObjectId('6b0574f29be46a54ad873d07'),
+    financialContext: "PERSONAL",
+    date: new Date("2026-11-15"),
+    recurringExpenseId: null,
+    createdAt: new Date("2026-11-24T11:57:18.054Z")
+  },
+  {
+    _id: ObjectId('6b057b9e9be46a54ad873d0b'),
+    userId: ObjectId('6b0573369be46a54ad873d04'),
+    type: "EXPENSE",
+    amount: Decimal128("1500.00"),
+    description: "Monthly Rent",
+    categoryId: ObjectId('6b0579169be46a54ad873d08'),
+    financialContext: "PERSONAL",
+    date: new Date("2026-11-01"),
+    recurringExpenseId: ObjectId('6b057a289be46a54ad873d09'),
+    createdAt: new Date("2026-11-24T11:57:18.054Z")
+  }
+])
+
+db.budgets.insertOne({
+  _id: ObjectId('6b057c939be46a54ad873d0c'),
+  userId: ObjectId('6b0573369be46a54ad873d04'),
+  categoryId: ObjectId('6b0579169be46a54ad873d08'),
+  name: "November spending budget",
+  description: "Monthly limit for bills",
+  startDate: new Date("2026-11-01"),
+  endDate: new Date("2026-11-30"),
+  amountLimit: Decimal128("5000.00"),
+  createdAt: new Date("2026-11-24T12:01:23.978Z")
+})
+
+db.savingsGoals.insertOne({
+  _id: ObjectId('6b057ccc9be46a54ad873d0d'),
+  userId: ObjectId('6b0573369be46a54ad873d04'),
+  name: "Emergency fund",
+  description: "3 months of expenses",
+  targetAmount: Decimal128("50000.00"),
+  currentAmount: Decimal128("5000.00"),
+  targetDate: new Date("2027-06-30"),
+  status: "ACTIVE",
+  createdAt: new Date("2026-11-24T12:02:20.766Z")
+})
