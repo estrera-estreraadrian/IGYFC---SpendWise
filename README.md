@@ -10,3 +10,10 @@
 
 ### Using test
 node --test test/\<filename\>.js
+
+1. Clone
+git clone https://github.com/estrera-estreraadrian/IGYFC---SpendWise
+2. Install dependencies
+npm install bcrypt
+npm install jsonwebtoken
+npm install dotenv
